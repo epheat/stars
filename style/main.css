@@ -1,0 +1,81 @@
+#canvasWrapper {
+  position: fixed;
+  z-index: -1;
+  top: 0;
+  left: 0;
+}
+
+body {
+  background-color: black;
+  padding: 0;
+  margin: 0;
+}
+
+h1 {
+  text-align: center;
+  font-size: 50pt;
+  font-weight: 100;
+  font-family: sans-serif;
+  color: white;
+}
+h3 {
+  color: white;
+}
+
+p {
+  font-size: 20pt;
+  font-family: cursive;
+  color: rgba(200, 200, 200, 0.7);
+}
+
+@media only screen and (max-width: 767px) {
+  h1 {
+    font-size: 30pt;
+  }
+}
+@media only screen and (min-width: 767px) {
+  h1 {
+    font-size: 60pt;
+  }
+}
+
+.grey-box {
+  margin: 0 auto;
+  margin-bottom: 40px;
+  min-height: 150px;
+  width: 70%;
+  max-width: 800px;
+  padding: 50px;
+  background-color: rgba(100, 100, 100, 0.2);
+  border-radius: 8px;
+}
+.blank-box {
+  margin: 0 auto;
+  margin-bottom: 40px;
+  height: 300px;
+  width: 70%;
+  max-width: 900px;
+  padding: 50px;
+  background-color: rgba(100, 100, 100, 0);
+  border-radius: 8px;
+  border: 2px solid;
+  border-color: rgba(120, 120, 120, 0.15);
+}
+
+.spacer {
+  color: white;
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.spacer-center {
+  text-align: center;
+}
+
+.separator {
+  margin: 30px auto;
+  height: 2px;
+  border-radius: 1px;
+  background-color: rgba(200, 200, 200, 0.8);
+  width: 90%;
+}
