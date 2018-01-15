@@ -1,6 +1,8 @@
 // created by Evan Heaton on 01/06/18
 
-const G = 10;
+// gravitational constant (alter to taste)
+const G = 0.1;
+const AIR_RESISTANCE = 0.0005;
 
 var canvas;
 var testStar;
@@ -17,18 +19,11 @@ function setup() {
   canvas = createCanvas(displayWidth, displayHeight);
   canvas.position(0, 0);
   canvas.parent('canvasWrapper');
-  stroke(0, 0, 0, 0);
-  // testStar = new Star(100, 100, 20, 5, 0.5, 0.02, 0.2, {red: 200, blue: 100, green: 50});
-  // testShootingStar = new ShootingStar(100, 100, 0, 15, 10, 0.9);
-  universe = new Universe(60);
+  universe = new Universe(50);
 }
 
 function draw() {
   background(0, 0, 0);
-  // testShootingStar.advance();
-  // testShootingStar.render();
-  // testStar.advance();
-  // testStar.render();
   universe.advance();
   universe.render();
 }
@@ -45,10 +40,27 @@ function Planet(x0, y0, v0, theta0, mass, radius, colors) {
   this.mass = mass;
   this.radius = radius;
   this.colors = colors;
+  this.absorbed = false;
+  this.absorbedPlanets = [];
 
   this.outOfBounds = function() {
     return this.x + this.radius < 0 || this.x - this.radius > displayWidth ||
           this.y + this.radius < 0 || this.y - this.radius > displayHeight;
+  }
+
+  this.absorb = function(planet) {
+    this.absorbedPlanets.push(planet);
+    this.mass += planet.mass;
+    this.radius += Math.sqrt(planet.radius) / 2;
+    this.colors.push(planet.colors);
+    this.velocityX += planet.velocityX;
+    this.velocityY += planet.velocityY;
+    this.velocityX /= 2;
+    this.velocityY /= 2;
+  }
+
+  this.collidingWith = function(planet) {
+    return Math.sqrt(Math.pow(planet.x - this.x, 2) + Math.pow(planet.y - this.y, 2)) < this.radius
   }
 
   this.applyForce = function(force, theta) {
@@ -80,15 +92,19 @@ function Planet(x0, y0, v0, theta0, mass, radius, colors) {
   this.advance = function() {
 
     // console.log(`accelerationX: ${this.accelerationX}`);
-
-    stroke(255, 255, 255);
-    line(this.x, this.y, this.x + (this.accelerationX * 1000), this.y + (this.accelerationY * 1000));
+    // uncomment to draw force vectors
+    // stroke(255, 255, 255);
+    // line(this.x, this.y, this.x + (this.accelerationX * 100), this.y + (this.accelerationY * 100));
 
     this.velocityX += this.accelerationX;
     this.velocityY += this.accelerationY;
 
     this.x += this.velocityX;
     this.y += this.velocityY;
+
+    // decay of velocity (air resistance?)
+    this.velocityX = decay(this.velocityX, AIR_RESISTANCE);
+    this.velocityY = decay(this.velocityY, AIR_RESISTANCE);
 
     // acceleration should be reset every tick
     this.accelerationX = 0;
@@ -227,7 +243,7 @@ function Universe(numStars) {
   this.pushRandomPlanet = function() {
     // Planet(x0, y0, v0, theta0, mass, radius, colors)
     this.planets.push(new Planet(randomOR(0, displayWidth), randomOR(0, displayHeight),
-      randomF(0.1, 5), randomF(0, 2 * Math.PI), randomInt(100, 500), randomF(10, 30),
+      randomF(0.1, 3), randomF(0, 2 * Math.PI), randomInt(1000, 5000), randomF(10, 30),
       [randomColor(), randomColor()]));
   }
 
@@ -273,14 +289,25 @@ function Universe(numStars) {
     // advance planets
     for (var i=0; i<this.planets.length; i++) {
       for (var j=i+1; j<this.planets.length; j++) {
-        // attract these two planets
-        this.planets[i].attract(this.planets[j]);
+        // if these planets are too close, annihilate them
+        if (this.planets[i].collidingWith(this.planets[j])) {
+          if (this.planets[i].mass > this.planets[j].mass) {
+            this.planets[i].absorb(this.planets[j]);
+            this.planets[j].absorbed = true;
+          } else {
+            this.planets[j].absorb(this.planets[i]);
+            this.planets[i].absorbed = true;
+          }
+        } else {
+          // attract these two planets
+          this.planets[i].attract(this.planets[j]);
+        }
       }
     }
     for (var i=0; i<this.planets.length; i++) {
-      if (this.planets[i].outOfBounds()) {
+      if (this.planets[i].outOfBounds() || this.planets[i].absorbed) {
         this.planets.splice(i, 1);
-        // console.log(this.planets);
+        i--;
       } else {
         this.planets[i].advance();
       }
@@ -331,4 +358,14 @@ function randomColor() {
 
 function distance(x1, y1, x2, y2) {
   return Math.sqrt(Math.pow(y2 - y1, 2) + Math.pow(x2 - x1, 2));
+}
+
+function decay(param, amt) {
+  if (param == 0) {
+    return param;
+  } else if (param < 0) {
+    return param + amt;
+  } else {
+    return param - amt;
+  }
 }

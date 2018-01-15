@@ -5,6 +5,10 @@
   left: 0;
 }
 
+#hide-show-button {
+  /* position: fixed; */
+}
+
 body {
   background-color: black;
   padding: 0;
