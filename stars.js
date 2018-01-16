@@ -2,7 +2,7 @@
 
 // gravitational constant (alter to taste)
 const G = 0.1;
-const AIR_RESISTANCE = 0.0005;
+const AIR_RESISTANCE = 0.0025;
 
 var canvas;
 var testStar;
@@ -19,11 +19,17 @@ function setup() {
   canvas = createCanvas(displayWidth, displayHeight);
   canvas.position(0, 0);
   canvas.parent('canvasWrapper');
-  universe = new Universe(50);
+  universe = new Universe(40);
 }
 
+var rotation = 0;
 function draw() {
   background(0, 0, 0);
+  // rotation += PI / 720;
+  // translate(-displayWidth / 2, -displayHeight / 2);
+  // rotate(rotation);
+  // translate(displayWidth / 2, displayHeight / 2);
+
   universe.advance();
   universe.render();
 }
@@ -50,13 +56,42 @@ function Planet(x0, y0, v0, theta0, mass, radius, colors) {
 
   this.absorb = function(planet) {
     this.absorbedPlanets.push(planet);
+
+    // add Kinetic Energies of the two planets
+    var kineticEnergyX = { energy: 0.5 * this.mass * this.velocityX * this.velocityX, sign: sign(this.velocityX)};
+    var kineticEnergyY = { energy: 0.5 * this.mass * this.velocityY * this.velocityY, sign: sign(this.velocityY)};
+
+    var planetEnergyX = { energy: 0.5 * planet.mass * planet.velocityX * planet.velocityX, sign: sign(planet.velocityX)};
+    var planetEnergyY = { energy: 0.5 * planet.mass * planet.velocityY * planet.velocityY, sign: sign(planet.velocityY)};
+
+    var resultingEnergyX, resultingEnergyY;
+    if (kineticEnergyX.sign == planetEnergyX.sign) {
+      resultingEnergyX = { energy: kineticEnergyX.energy + planetEnergyX.energy, sign: kineticEnergyX.sign};
+    } else {
+      if (kineticEnergyX.energy - planetEnergyX.energy < 0) {
+        resultingEnergyX = { energy: planetEnergyX.energy - kineticEnergyX.energy, sign: planetEnergyX.sign }
+      } else {
+        resultingEnergyX = { energy: kineticEnergyX.energy - planetEnergyX.energy, sign: kineticEnergyX.sign }
+      }
+    }
+    if (kineticEnergyY.sign == planetEnergyY.sign) {
+      resultingEnergyY = { energy: kineticEnergyY.energy + planetEnergyY.energy, sign: kineticEnergyY.sign};
+    } else {
+      if (kineticEnergyY.energy - planetEnergyY.energy < 0) {
+        resultingEnergyY = { energy: planetEnergyY.energy - kineticEnergyY.energy, sign: planetEnergyY.sign }
+      } else {
+        resultingEnergyY = { energy: kineticEnergyY.energy - planetEnergyY.energy, sign: kineticEnergyY.sign }
+      }
+    }
+
     this.mass += planet.mass;
     this.radius += Math.sqrt(planet.radius) / 2;
-    this.colors.push(planet.colors);
-    this.velocityX += planet.velocityX;
-    this.velocityY += planet.velocityY;
-    this.velocityX /= 2;
-    this.velocityY /= 2;
+    for (var i=0; i<planet.colors.length; i++) {
+      this.colors.push(planet.colors[i]);
+    }
+
+    this.velocityX = resultingEnergyX.sign * Math.sqrt(resultingEnergyX.energy * 2 / this.mass);
+    this.velocityY = resultingEnergyY.sign * Math.sqrt(resultingEnergyY.energy * 2 / this.mass);
   }
 
   this.collidingWith = function(planet) {
@@ -114,10 +149,13 @@ function Planet(x0, y0, v0, theta0, mass, radius, colors) {
 
   this.render = function() {
 
-    strokeWeight(2.0);
+    strokeWeight(2.5);
     stroke(this.colors[0].red, this.colors[0].green, this.colors[0].blue);
-    fill(this.colors[1].red, this.colors[1].green, this.colors[1].blue);
-    arc(this.x, this.y, this.radius, this.radius, 0, PI);
+    var slice = PI / (this.colors.length-1);
+    for (var i=1; i<this.colors.length; i++) {
+      fill(this.colors[i].red, this.colors[i].green, this.colors[i].blue)
+      arc(this.x, this.y, this.radius, this.radius, (i-1)*slice, i*slice);
+    }
     fill(this.colors[0].red, this.colors[0].green, this.colors[0].blue);
     arc(this.x, this.y, this.radius, this.radius, PI, 2 * PI);
 
@@ -241,9 +279,28 @@ function Universe(numStars) {
   this.planets = [];
 
   this.pushRandomPlanet = function() {
+    var randomSide = randomInt(0, 4);
+    var x, y, theta;
+    if (randomSide == 0) { // from north
+      x = randomF(0, displayWidth);
+      y = -10;
+      theta = randomF(0, Math.PI);
+    } else if (randomSide == 1) { // from east
+      x = displayWidth + 10;
+      y = randomF(0, displayHeight);
+      theta = randomF(Math.PI / 2, 3 * Math.PI / 2);
+    } else if (randomSide == 2) { // from south
+      x = randomF(0, displayWidth);
+      y = displayHeight + 10;
+      theta = randomF(Math.PI, 2 * Math.PI);
+    } else { // from west
+      x = -10;
+      y = randomF(0, displayHeight);
+      theta = randomF(3 * Math.PI / 2, 5 * Math.PI / 2);
+    }
     // Planet(x0, y0, v0, theta0, mass, radius, colors)
-    this.planets.push(new Planet(randomOR(0, displayWidth), randomOR(0, displayHeight),
-      randomF(0.1, 3), randomF(0, 2 * Math.PI), randomInt(1000, 5000), randomF(10, 30),
+    this.planets.push(new Planet(x, y,
+      randomF(0.1, 3), theta, randomInt(1000, 5000), randomF(10, 30),
       [randomColor(), randomColor()]));
   }
 
@@ -289,9 +346,9 @@ function Universe(numStars) {
     // advance planets
     for (var i=0; i<this.planets.length; i++) {
       for (var j=i+1; j<this.planets.length; j++) {
-        // if these planets are too close, annihilate them
+        // if these planets collide, the one with greater mass should absorb the smaller planet
         if (this.planets[i].collidingWith(this.planets[j])) {
-          if (this.planets[i].mass > this.planets[j].mass) {
+          if (this.planets[i].radius > this.planets[j].radius) {
             this.planets[i].absorb(this.planets[j]);
             this.planets[j].absorbed = true;
           } else {
@@ -304,6 +361,7 @@ function Universe(numStars) {
         }
       }
     }
+    // now remove any out of bounds planets
     for (var i=0; i<this.planets.length; i++) {
       if (this.planets[i].outOfBounds() || this.planets[i].absorbed) {
         this.planets.splice(i, 1);
@@ -313,12 +371,13 @@ function Universe(numStars) {
       }
     }
 
-
-    if (randomInt(0, 100) == 0) {
+    // spawn new shooting stars
+    if (randomInt(0, 150) == 0) {
       this.pushRandomShootingStar();
       // console.log(this.shootingStars);
     }
-    if (randomInt(0, 80) == 0) {
+    // spawn new planets
+    if (randomInt(0, 70) == 0) {
       this.pushRandomPlanet();
     }
   }
@@ -367,5 +426,15 @@ function decay(param, amt) {
     return param + amt;
   } else {
     return param - amt;
+  }
+}
+
+function sign(a) {
+  if (a < 0) {
+    return -1;
+  } else if (a > 0) {
+    return 1;
+  } else {
+    return 0;
   }
 }
