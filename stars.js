@@ -2,7 +2,10 @@
 
 // gravitational constant (alter to taste)
 const G = 0.1;
+const GRAVITATION_G = 0.2
 const AIR_RESISTANCE = 0.0025;
+const FRAME_RATE = 60;
+const GRAVITATION_MASS = 20000;
 
 var canvas;
 var testStar;
@@ -19,6 +22,7 @@ function setup() {
   canvas = createCanvas(displayWidth, displayHeight);
   canvas.position(0, 0);
   canvas.parent('canvasWrapper');
+  frameRate(FRAME_RATE);
   universe = new Universe(40);
 }
 
@@ -32,6 +36,22 @@ function draw() {
 
   universe.advance();
   universe.render();
+}
+
+function mousePressed() {
+  universe.activateMouseGravitation();
+}
+
+function mouseReleased() {
+  universe.deactivateMouseGravitation();
+}
+
+function mouseMoved() {
+  universe.updateMouseGravitation(mouseX, mouseY);
+}
+
+function mouseDragged() {
+  universe.updateMouseGravitation(mouseX, mouseY);
 }
 
 // Planet
@@ -122,6 +142,22 @@ function Planet(x0, y0, v0, theta0, mass, radius, colors) {
     // console.log(theta);
     this.applyForce(force, theta);
     planet.applyForce(force, theta2);
+  }
+
+  // pull the planet towards a gravitation
+  this.pull = function(gravitation) {
+    var force;
+    if (distance(this.x, this.y, gravitation.x, gravitation.y) <= 30) {
+      force = 0;
+    } else {
+      force = GRAVITATION_G * this.mass * GRAVITATION_MASS / Math.pow(distance(this.x, this.y, gravitation.x, gravitation.y), 2);
+    }
+    if (this.x > gravitation.x) {
+      theta = Math.atan((gravitation.y - this.y) / (gravitation.x - this.x)) + PI;
+    } else {
+      theta = Math.atan((gravitation.y - this.y) / (gravitation.x - this.x));
+    }
+    this.applyForce(force, theta);
   }
 
   this.advance = function() {
@@ -216,6 +252,99 @@ function ShootingStar(x0, y0, theta0, speed, lifespan, intensity0) {
   }
 }
 
+// container for GravitationLines, create one for each touch on screen.
+function Gravitation(x, y) {
+  this.x = x;
+  this.y = y;
+  this.active = false;
+  this.gravitationLines = [];
+
+  this.updatePosition = function(x, y) {
+    this.x = x;
+    this.y = y;
+  }
+
+  this.activate = function() {
+    this.active = true;
+  }
+  this.deactivate = function() {
+    this.active = false;
+  }
+
+  this.pushRandomGravitationLine = function() {
+    // Gravitation(cX, cY, theta, length, intensity)
+    this.gravitationLines.push(new GravitationLine(this.x, this.y, randomF(0, 2*Math.PI),
+      randomInt(8, 38), randomF(0.6, 1)));
+  }
+
+  this.advance = function() {
+    if (this.active && randomInt(0, 3) == 1) {
+      this.pushRandomGravitationLine();
+    }
+    for (var i=0; i<this.gravitationLines.length; i++) {
+      if (this.gravitationLines[i].expired) {
+        this.gravitationLines.splice(i, 1);
+      } else {
+        this.gravitationLines[i].advance();
+      }
+    }
+  }
+
+  this.render = function() {
+    for (var i=0; i<this.gravitationLines.length; i++) {
+      this.gravitationLines[i].render();
+    }
+  }
+}
+
+// grayish markers around cursor to show pull
+// should look kind of like shooting stars pulling inward
+function GravitationLine(cX, cY, theta, length, intensity) {
+  this.cX = cX;
+  this.cY = cY;
+  this.x0 = cX + ((15 + length) * Math.cos(theta));
+  this.y0 = cY + ((15 + length) * Math.sin(theta));
+  this.x = this.x0;
+  this.y = this.y0;
+  this.theta = theta;
+  this.length = length;
+  this.intensity = intensity;
+  this.dead = false;
+  this.expired = false;
+  this.speed = 3;
+
+  this.die = function() {
+    this.dead = true;
+  }
+
+  this.advance = function() {
+    if (this.dead) {
+      this.intensity -= 0.04;
+      if (this.intensity <= 0.06) {
+        this.expired = true;
+      }
+    } else {
+      if (sign(Math.cos(this.theta))) {
+
+      }
+      if (distance(this.x, this.y, this.cX, this.cY)  <= 15) {
+        this.die();
+      } else {
+        this.x -= (this.speed * Math.cos(this.theta));
+        this.y -= (this.speed * Math.sin(this.theta));
+      }
+    }
+  }
+
+  this.render = function() {
+    // render the line
+    strokeWeight(1.4);
+    strokeCap(ROUND);
+    stroke(this.intensity*150 + 60);
+    line(this.x0, this.y0, this.x, this.y);
+  }
+}
+
 // x0 = initial x position
 // y0 = initial y position
 // r0 = star outer radius
@@ -277,6 +406,17 @@ function Universe(numStars) {
   this.stars = [];
   this.shootingStars = [];
   this.planets = [];
+  this.gravitations = [new Gravitation(mouseX, mouseY)];
+
+  this.activateMouseGravitation = function() {
+    this.gravitations[0].activate();
+  }
+  this.deactivateMouseGravitation = function() {
+    this.gravitations[0].deactivate();
+  }
+  this.updateMouseGravitation = function(x, y) {
+    this.gravitations[0].updatePosition(x, y);
+  }
 
   this.pushRandomPlanet = function() {
     var randomSide = randomInt(0, 4);
@@ -318,7 +458,7 @@ function Universe(numStars) {
   this.pushRandomShootingStar = function() {
     // ShootingStar(x0, y0, theta0, speed, lifespan, intensity0)
     this.shootingStars.push(new ShootingStar(randomF(0, displayWidth), randomF(0, displayHeight),
-    randomF(0, 2*Math.PI), randomF(18, 35), randomInt(8, 20), randomF(0.6, 0.82)));
+      randomF(0, 2*Math.PI), randomF(18, 35), randomInt(8, 20), randomF(0.6, 0.82)));
   }
 
   for (var i=0; i<numStars; i++) {
@@ -343,7 +483,19 @@ function Universe(numStars) {
         this.shootingStars[i].advance();
       }
     }
-    // advance planets
+    // pull planets towards the gravitations
+    for (var i=0; i<this.gravitations.length;i++) {
+      if (this.gravitations[i].active) {
+        for (var j=0; j<this.planets.length;j++) {
+          this.planets[j].pull(this.gravitations[i]);
+        }
+      }
+    }
+    // advance the gravitations
+    for (var i=0; i<this.gravitations.length;i++) {
+      this.gravitations[i].advance();
+    }
+    // attract planets
     for (var i=0; i<this.planets.length; i++) {
       for (var j=i+1; j<this.planets.length; j++) {
         // if these planets collide, the one with greater mass should absorb the smaller planet
@@ -361,7 +513,7 @@ function Universe(numStars) {
         }
       }
     }
-    // now remove any out of bounds planets
+    // remove any out of bounds planets, advance the rest
     for (var i=0; i<this.planets.length; i++) {
       if (this.planets[i].outOfBounds() || this.planets[i].absorbed) {
         this.planets.splice(i, 1);
@@ -382,14 +534,17 @@ function Universe(numStars) {
     }
   }
   this.render = function() {
-    for (var i=0; i<this.planets.length; i++) {
-      this.planets[i].render();
-    }
     for (var i=0; i<this.stars.length; i++) {
       this.stars[i].render();
     }
     for (var i=0; i<this.shootingStars.length; i++) {
       this.shootingStars[i].render();
+    }
+    for (var i=0; i<this.planets.length; i++) {
+      this.planets[i].render();
+    }
+    for (var i=0; i<this.gravitations.length; i++) {
+      this.gravitations[i].render();
     }
   }
 }
